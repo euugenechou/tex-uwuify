@@ -29,6 +29,13 @@ def blacklisted(node):
         "documentclass",
         "cite",
         "includegraphics",
+        "usetikzlibrary",
+        "newglossaryentry",
+        "gls",
+        "glspl",
+        "href",
+        "pagenumbering",
+        "color",
     ]
 
     if isinstance(node, LatexMacroNode) and node.macroname in blacklist:
@@ -49,6 +56,13 @@ def skiptable(node):
         "documentclass": 2,
         "cite": 2,
         "includegraphics": 3,
+        "usetikzlibrary": 2,
+        "newglossaryentry": 3,
+        "gls": 2,
+        "glspl": 2,
+        "href": 3,
+        "pagenumbering": 2,
+        "color": 2,
     }
 
     if isinstance(node, LatexMacroNode) and node.macroname in skip:

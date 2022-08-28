@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+
+from pylatexenc.latexwalker import LatexWalker, LatexCharsNode, LatexMacroNode
+import argparse
+import glob
+import re
+import shutil
+
+
+def blacklisted(node):
+    blacklist = [
+        "crefname",
+        "Crefname",
+        "tiny",
+        "scriptsize",
+        "footnotesize",
+        "small",
+        "normalsize",
+        "large",
+        "Large",
+        "LARGE",
+        "huge",
+        "HUGE",
+        "message",
+        "input",
+        "usepackage",
+        "bibliographystyle",
+        "bibliography",
+        "documentclass",
+        "cite",
+        "includegraphics",
+    ]
+
+    if isinstance(node, LatexMacroNode) and node.macroname in blacklist:
+        return True
+
+    return False
+
+
+def skiptable(node):
+    skip = {
+        "crefname": 3,
+        "Crefname": 3,
+        "crefformat": 2,
+        "Crefformat": 2,
+        "message": 2,
+        "bibliographystyle": 2,
+        "bibliography": 2,
+        "documentclass": 2,
+        "cite": 2,
+        "includegraphics": 3,
+    }
+
+    if isinstance(node, LatexMacroNode) and node.macroname in skip:
+        return skip[node.macroname]
+
+    return 1
+
+
+def uwuify(paragraph):
+    regex = re.compile(r"(\b\w{2,})er\b", re.IGNORECASE)
+    paragraph = regex.sub(r"\g<1>ah", paragraph)
+    return paragraph.translate(
+        str.maketrans({"r": "w", "l": "w", "R": "W", "L": "W"})
+    )
+
+
+def uwuify_nodes(nodes):
+    i = 0
+
+    while i < len(nodes):
+        if not blacklisted(nodes[i]):
+            if hasattr(nodes[i], "nodeargd") and \
+                    hasattr(nodes[i].nodeargd, "argnlist"):
+                uwuify_nodes(nodes[i].nodeargd.argnlist)
+            if hasattr(nodes[i], "nodelist"):
+                uwuify_nodes(nodes[i].nodelist)
+            if isinstance(nodes[i], LatexCharsNode):
+                start = nodes[i].pos
+                end = nodes[i].pos + nodes[i].len
+                nodes[i].parsing_state.s = \
+                    nodes[i].parsing_state.s[:start] + \
+                    uwuify(nodes[i].parsing_state.s[start:end]) + \
+                    nodes[i].parsing_state.s[end:]
+
+        i += skiptable(nodes[i])
+
+
+def uwuify_file(path):
+    with open(path, "r+") as file:
+        text = file.read()
+        file.seek(0, 0)
+
+        walker = LatexWalker(text)
+        nodes, _, _ = walker.get_latex_nodes(pos=0)
+        uwuify_nodes(nodes)
+
+        for node in nodes:
+            file.write(node.latex_verbatim())
+
+
+def uwuify_project(path):
+    uwuified = f"{path}-uwuified"
+
+    shutil.rmtree(uwuified, ignore_errors=True)
+    shutil.copytree(path, uwuified, dirs_exist_ok=True)
+
+    for file in glob.iglob(uwuified + "/**/*.tex", recursive=True):
+        uwuify_file(file)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter,
+        description=("A program to uwuify all your LaTeX projects.")
+    )
+    parser.add_argument(
+        "projects", nargs="+", default=[],
+        help="list of LaTeX projects to uwuify"
+    )
+    args = parser.parse_args()
+
+    for project in args.projects:
+        uwuify_project(project)
+
+
+if __name__ == "__main__":
+    main()

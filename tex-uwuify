@@ -36,6 +36,8 @@ def blacklisted(node):
         "href",
         "pagenumbering",
         "color",
+        "sisetup",
+        "addcontentsline",
     ]
 
     if isinstance(node, LatexMacroNode) and node.macroname in blacklist:
@@ -63,6 +65,8 @@ def skiptable(node):
         "href": 3,
         "pagenumbering": 2,
         "color": 2,
+        "sisetup": 2,
+        "addcontentsline": 3,
     }
 
     if isinstance(node, LatexMacroNode) and node.macroname in skip:

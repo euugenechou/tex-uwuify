@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 from pylatexenc.latexwalker import LatexWalker, LatexCharsNode, LatexMacroNode
+from uwuify import uwu as uwuify
 import argparse
 import glob
-import re
+import os
+import sys
 import shutil
 
 
@@ -75,46 +77,91 @@ def skiptable(node):
     return 1
 
 
-def uwuify(paragraph):
-    regex = re.compile(r"(\b\w{2,})er\b", re.IGNORECASE)
-    paragraph = regex.sub(r"\g<1>ah", paragraph)
-    return paragraph.translate(
-        str.maketrans({"r": "w", "l": "w", "R": "W", "L": "W"})
-    )
-
-
-def uwuify_nodes(nodes):
+def uwuify_nodes(nodes, offsets, mappings, states):
     i = 0
-
     while i < len(nodes):
+        if not nodes[i]:
+            i += 1
+            continue
+
         if not blacklisted(nodes[i]):
+            if hasattr(nodes[i], "parsing_state") and \
+                    not nodes[i].parsing_state.s in offsets:
+                offsets[nodes[i].parsing_state.s] = 0
+                mappings[nodes[i].parsing_state.s] = len(states)
+                states.append(nodes[i].parsing_state.s)
+
             if hasattr(nodes[i], "nodeargd") and \
                     hasattr(nodes[i].nodeargd, "argnlist"):
-                uwuify_nodes(nodes[i].nodeargd.argnlist)
+                uwuify_nodes(
+                    nodes[i].nodeargd.argnlist,
+                    offsets,
+                    mappings,
+                    states,
+                )
+
             if hasattr(nodes[i], "nodelist"):
-                uwuify_nodes(nodes[i].nodelist)
+                uwuify_nodes(
+                    nodes[i].nodelist,
+                    offsets,
+                    mappings,
+                    states,
+                )
+
             if isinstance(nodes[i], LatexCharsNode):
                 start = nodes[i].pos
-                end = nodes[i].pos + nodes[i].len
-                nodes[i].parsing_state.s = \
-                    nodes[i].parsing_state.s[:start] + \
-                    uwuify(nodes[i].parsing_state.s[start:end]) + \
-                    nodes[i].parsing_state.s[end:]
+                end = start + nodes[i].len
+
+                original = nodes[i].parsing_state.s[start:end]
+                uwu = uwuify(original)
+                diff = len(uwu) - len(original)
+
+                offset = offsets[nodes[i].parsing_state.s]
+                offsets[nodes[i].parsing_state.s] += diff
+
+                start = nodes[i].pos + offset
+                end = start + nodes[i].len
+
+                index = mappings[nodes[i].parsing_state.s]
+                before = states[index][:start]
+                after = states[index][end:]
+                states[index] = before + uwu + after
 
         i += skiptable(nodes[i])
 
 
-def uwuify_file(path):
-    with open(path, "r+") as file:
-        text = file.read()
-        file.seek(0, 0)
+def uwuify_file(path, redirect=False):
+    if not redirect:
+        with open(path, "r+") as file:
+            offsets = {}
+            mappings = {}
+            states = []
+            text = file.read()
 
-        walker = LatexWalker(text)
-        nodes, _, _ = walker.get_latex_nodes(pos=0)
-        uwuify_nodes(nodes)
+            walker = LatexWalker(text)
+            nodes, _, _ = walker.get_latex_nodes(pos=0)
+            uwuify_nodes(nodes, offsets, mappings, states)
 
-        for node in nodes:
-            file.write(node.latex_verbatim())
+            file.truncate(0)
+            file.seek(0, 0)
+
+            for state in states:
+                file.write(state)
+    else:
+        inpath = path
+        outpath = f"{os.path.splitext(path)[0]}-uwufied.tex"
+        with open(inpath, "r") as infile, open(outpath, "w") as outfile:
+            offsets = {}
+            mappings = {}
+            states = []
+            text = infile.read()
+
+            walker = LatexWalker(text)
+            nodes, _, _ = walker.get_latex_nodes(pos=0)
+            uwuify_nodes(nodes, offsets, mappings, states)
+
+            for state in states:
+                outfile.write(state)
 
 
 def uwuify_project(path):
@@ -130,16 +177,19 @@ def uwuify_project(path):
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
-        description=("A program to uwuify all your LaTeX projects.")
+        description=("A program to uwuify all your LaTeX files/projects.")
     )
     parser.add_argument(
         "projects", nargs="+", default=[],
-        help="list of LaTeX projects to uwuify"
+        help="list of LaTeX files/projects to uwuify"
     )
     args = parser.parse_args()
 
     for project in args.projects:
-        uwuify_project(project)
+        if os.path.isdir(project):
+            uwuify_project(project)
+        else:
+            uwuify_file(project, redirect=True)
 
 
 if __name__ == "__main__":

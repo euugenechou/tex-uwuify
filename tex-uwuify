@@ -112,7 +112,7 @@ def uwuify_nodes(nodes, offsets, mappings, states):
                 end = start + nodes[i].len
 
                 original = nodes[i].parsing_state.s[start:end]
-                uwu = uwuify.uwu(original, flags=uwuify.SMILEY | uwuify.YU)
+                uwu = uwuify.uwu(original)
                 diff = len(uwu) - len(original)
 
                 offset = offsets[nodes[i].parsing_state.s]

@@ -1,1 +1,2 @@
 pylatexenc==2.10
+uwuify==1.1.0
